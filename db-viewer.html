@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PostgreSQL Database Viewer | SSA Parking System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="glass-card sticky top-0 z-50 px-6 py-4 flex items-center justify-between border-b border-slate-800">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
+        PG
+      </div>
+      <div>
+        <h1 class="text-lg font-bold text-white flex items-center gap-2">
+          PostgreSQL Database Inspector
+          <span class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Connected</span>
+        </h1>
+        <p class="text-xs text-slate-400">SSA Parking System • Web Database Explorer</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/index.html" class="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center gap-2 border border-slate-700">
+        ← Back to Parking App
+      </a>
+      <button onclick="loadDatabaseSchema()" class="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition shadow-md shadow-blue-600/30 flex items-center gap-2">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        Refresh Data
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- Sidebar: Tables List -->
+    <aside class="w-72 glass-card border-r border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar shrink-0">
+      <div>
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">Tables in Public Schema</h2>
+        <div id="tables-list" class="space-y-1">
+          <div class="p-3 rounded-lg bg-slate-800/50 animate-pulse text-xs text-slate-400">Loading tables...</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Content Area: Table Schema & Data Grid -->
+    <main class="flex-1 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6">
+      
+      <!-- Table Header Info -->
+      <div id="table-info-bar" class="glass-card rounded-2xl p-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 id="active-table-title" class="text-2xl font-bold text-white flex items-center gap-3">
+            Select a table
+          </h2>
+          <p id="active-table-subtitle" class="text-sm text-slate-400 mt-1">Click any table from the sidebar to inspect columns and live records.</p>
+        </div>
+        <div id="table-stats-badge" class="hidden flex items-center gap-3">
+          <span id="row-count-badge" class="px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 font-mono text-xs border border-blue-500/20">0 rows</span>
+        </div>
+      </div>
+
+      <!-- Data Table View -->
+      <div class="glass-card rounded-2xl overflow-hidden flex flex-col">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            Table Data View (Latest 200 Rows)
+          </h3>
+          <input type="text" id="filter-input" onkeyup="filterRows()" placeholder="Filter current view..." class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 w-64">
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left border-collapse">
+            <thead id="data-thead" class="bg-slate-900/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="p-4 text-slate-500 italic">No table selected</th>
+              </tr>
+            </thead>
+            <tbody id="data-tbody" class="divide-y divide-slate-800/60 text-xs font-mono text-slate-300">
+              <tr>
+                <td class="p-8 text-center text-slate-500">Select a table from the sidebar to display records.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let currentSchema = [];
+    let activeTable = null;
+    let tableRowsCache = [];
+
+    async function loadDatabaseSchema() {
+      try {
+        const res = await fetch('/api/admin/tables');
+        const data = await res.json();
+        
+        if (!data.success) {
+          throw new Error(data.message);
+        }
+
+        currentSchema = data.tables;
+        renderSidebar();
+
+        if (currentSchema.length > 0 && !activeTable) {
+          selectTable(currentSchema[0].name);
+        } else if (activeTable) {
+          selectTable(activeTable);
+        }
+      } catch (err) {
+        document.getElementById('tables-list').innerHTML = `
+          <div class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400">
+            Error loading DB schema: ${err.message}. Make sure PostgreSQL is running.
+          </div>
+        `;
+      }
+    }
+
+    function renderSidebar() {
+      const container = document.getElementById('tables-list');
+      container.innerHTML = currentSchema.map(t => `
+        <button onclick="selectTable('${t.name}')" class="w-full text-left p-3 rounded-xl transition flex items-center justify-between group ${activeTable === t.name ? 'bg-blue-600/20 border border-blue-500/30 text-white' : 'hover:bg-slate-800/60 text-slate-300'}">
+          <div class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-slate-400 group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+            <span class="font-medium text-sm">${t.name}</span>
+          </div>
+          <span class="text-xs font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 group-hover:bg-slate-700">${t.rowCount}</span>
+        </button>
+      `).join('');
+    }
+
+    async function selectTable(tableName) {
+      activeTable = tableName;
+      renderSidebar();
+
+      const tableInfo = currentSchema.find(t => t.name === tableName);
+      document.getElementById('active-table-title').innerHTML = `
+        <span class="text-blue-400 font-mono">public.</span>${tableName}
+      `;
+      document.getElementById('active-table-subtitle').textContent = `Columns: ${tableInfo ? tableInfo.columns.map(c => c.column_name).join(', ') : ''}`;
+      document.getElementById('table-stats-badge').classList.remove('hidden');
+      document.getElementById('row-count-badge').textContent = `${tableInfo ? tableInfo.rowCount : 0} Total Rows`;
+
+      document.getElementById('data-tbody').innerHTML = `
+        <tr><td colspan="100" class="p-8 text-center text-slate-400 animate-pulse">Fetching records from PostgreSQL...</td></tr>
+      `;
+
+      try {
+        const res = await fetch(`/api/admin/tables/${tableName}`);
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.message);
+
+        tableRowsCache = data.rows;
+        renderRows(tableRowsCache, tableInfo ? tableInfo.columns : []);
+      } catch (err) {
+        document.getElementById('data-tbody').innerHTML = `
+          <tr><td colspan="100" class="p-8 text-center text-rose-400">Failed to load table rows: ${err.message}</td></tr>
+        `;
+      }
+    }
+
+    function renderRows(rows, columns) {
+      const thead = document.getElementById('data-thead');
+      const tbody = document.getElementById('data-tbody');
+
+      if (rows.length === 0 && columns.length > 0) {
+        thead.innerHTML = `<tr>${columns.map(c => `<th class="p-4">${c.column_name} <span class="text-[10px] text-slate-500 font-normal">(${c.data_type})</span></th>`).join('')}</tr>`;
+        tbody.innerHTML = `<tr><td colspan="${columns.length}" class="p-8 text-center text-slate-500">Table is empty. No rows returned.</td></tr>`;
+        return;
+      }
+
+      if (rows.length === 0) {
+        thead.innerHTML = `<tr><th class="p-4">No Columns</th></tr>`;
+        tbody.innerHTML = `<tr><td class="p-8 text-center text-slate-500">No data available.</td></tr>`;
+        return;
+      }
+
+      const colNames = Object.keys(rows[0]);
+      thead.innerHTML = `<tr>${colNames.map(name => `<th class="p-4 whitespace-nowrap">${name}</th>`).join('')}</tr>`;
+
+      tbody.innerHTML = rows.map(r => `
+        <tr class="hover:bg-slate-800/40 transition">
+          ${colNames.map(col => {
+            const val = r[col];
+            const isNull = val === null || val === undefined;
+            return `<td class="p-4 whitespace-nowrap ${isNull ? 'text-slate-600 italic' : 'text-slate-200'}">${isNull ? 'NULL' : String(val)}</td>`;
+          }).join('')}
+        </tr>
+      `).join('');
+    }
+
+    function filterRows() {
+      const query = document.getElementById('filter-input').value.toLowerCase();
+      if (!query) {
+        renderRows(tableRowsCache, []);
+        return;
+      }
+
+      const filtered = tableRowsCache.filter(row => {
+        return Object.values(row).some(v => String(v).toLowerCase().includes(query));
+      });
+
+      renderRows(filtered, []);
+    }
+
+    // Initial load
+    window.addEventListener('DOMContentLoaded', loadDatabaseSchema);
+  </script>
+</body>
+</html>
